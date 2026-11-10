@@ -688,7 +688,7 @@
             });
         }
 
-        // --- PRODUCT DETAIL & VARIANT SELECTOR (STOCK CHECK & PRICE STRIKETHROUGH FOR RESELLER) ---
+        // --- PRODUCT DETAIL & VARIANT SELECTOR ---
         function openProductDetail(productId) {
             const products = JSON.parse(localStorage.getItem('brx_products')) || [];
             const p = products.find(x => x.id === productId);
@@ -789,7 +789,7 @@
                         </div>
                     </div>
 
-                    <!-- STEP 2: DETAIL ORDER / WA WAJIB, NAMA OPSIONAL -->
+                    <!-- STEP 2: DETAIL ORDER -->
                     <div class="space-y-3 pt-4 border-t border-zinc-800">
                         <div class="flex items-center gap-2">
                             <div class="w-6 h-6 rounded-full bg-red-600 text-white font-bold text-xs flex items-center justify-center">2</div>
@@ -832,7 +832,7 @@
             openProductDetail(productId);
         }
 
-        // --- PURCHASE & KEY + LINK DELIVERY SYSTEM (WA REQUIRED) ---
+        // --- PURCHASE & MIDTRANS SNAP INTEGRATION ---
         function executeGuestBuy(productId) {
             const waInput = document.getElementById('guest-wa').value.trim();
             if (!waInput) {
@@ -855,63 +855,75 @@
             }
 
             const assignedKey = keys[keyIndex];
-            assignedKey.status = 'SOLD';
-            localStorage.setItem('brx_keys', JSON.stringify(keys));
-
             const isReseller = currentUser && currentUser.role === 'RESELLER';
             const pricePaid = isReseller ? variant.priceReseller : variant.priceNormal;
             const guestName = document.getElementById('guest-name').value.trim() || (currentUser ? currentUser.username : 'Tamu / Guest');
 
-            const transactions = JSON.parse(localStorage.getItem('brx_transactions')) || [];
-            const tx = {
-                id: 'tx_' + Date.now(),
-                userId: currentUser ? currentUser.id : 'guest_' + Date.now(),
-                username: guestName,
-                whatsapp: waInput,
-                productName: product.name,
-                duration: variant.duration,
-                price: pricePaid,
-                keyValue: assignedKey.keyValue,
-                downloadLink: product.downloadLink || '',
-                date: new Date().toLocaleString()
-            };
-            transactions.push(tx);
-            localStorage.setItem('brx_transactions', JSON.stringify(transactions));
+            // Memanggil Midtrans Snap Pop-up QRIS
+            window.snap.pay('SIMULASI_SNAP_TOKEN_ANDA', {
+                onSuccess: function(result){
+                    assignedKey.status = 'SOLD';
+                    localStorage.setItem('brx_keys', JSON.stringify(keys));
 
-            const modalBody = document.getElementById('purchase-modal-body');
-            modalBody.innerHTML = `
-                <div class="p-4 rounded-2xl bg-emerald-500/10 border border-emerald-500/20 text-emerald-400 text-xs font-semibold flex items-center gap-3">
-                    <i class="fa-solid fa-circle-check text-xl"></i>
-                    <div>Pembelian Berhasil! Key dan Link Download Anda sudah siap.</div>
-                </div>
-                <div class="space-y-3 bg-zinc-950 p-4 rounded-2xl border border-zinc-800">
-                    <div class="flex justify-between"><span class="text-zinc-500">Pembeli:</span><span class="text-white font-bold">${guestName}</span></div>
-                    <div class="flex justify-between"><span class="text-zinc-500">WhatsApp:</span><span class="text-white font-bold">${waInput}</span></div>
-                    <div class="flex justify-between"><span class="text-zinc-500">Produk:</span><span class="text-white font-bold">${product.name}</span></div>
-                    <div class="flex justify-between"><span class="text-zinc-500">Durasi:</span><span class="text-white font-bold">${variant.duration}</span></div>
-                    <div class="flex justify-between"><span class="text-zinc-500">Total Harga:</span><span class="text-red-500 font-bold">Rp ${pricePaid.toLocaleString('id-ID')}</span></div>
-                    
-                    <div class="pt-2 border-t border-zinc-800 space-y-2">
-                        <span class="block text-zinc-400 text-xs uppercase font-semibold">KEY ANDA:</span>
-                        <div class="flex items-center gap-2">
-                            <input type="text" readonly value="${assignedKey.keyValue}" id="key-copy-input" class="w-full bg-zinc-900 border border-zinc-700 rounded-xl px-3 py-2 font-mono text-xs text-white">
-                            <button onclick="copyKeyText()" class="px-4 py-2 bg-red-600 hover:bg-red-700 text-white rounded-xl text-xs font-bold transition">Salin</button>
+                    const transactions = JSON.parse(localStorage.getItem('brx_transactions')) || [];
+                    const tx = {
+                        id: 'tx_' + Date.now(),
+                        userId: currentUser ? currentUser.id : 'guest_' + Date.now(),
+                        username: guestName,
+                        whatsapp: waInput,
+                        productName: product.name,
+                        duration: variant.duration,
+                        price: pricePaid,
+                        keyValue: assignedKey.keyValue,
+                        downloadLink: product.downloadLink || '',
+                        date: new Date().toLocaleString()
+                    };
+                    transactions.push(tx);
+                    localStorage.setItem('brx_transactions', JSON.stringify(transactions));
+
+                    const modalBody = document.getElementById('purchase-modal-body');
+                    modalBody.innerHTML = `
+                        <div class="p-4 rounded-2xl bg-emerald-500/10 border border-emerald-500/20 text-emerald-400 text-xs font-semibold flex items-center gap-3">
+                            <i class="fa-solid fa-circle-check text-xl"></i>
+                            <div>Pembayaran & Pembelian Berhasil! Key dan Link Download Anda sudah siap.</div>
                         </div>
-                    </div>
-
-                    ${product.downloadLink ? `
-                        <div class="pt-2 border-t border-zinc-800 space-y-2">
-                            <span class="block text-zinc-400 text-xs uppercase font-semibold">LINK DOWNLOAD / FILE:</span>
-                            <div class="flex items-center gap-2">
-                                <input type="text" readonly value="${product.downloadLink}" id="link-copy-input" class="w-full bg-zinc-900 border border-zinc-700 rounded-xl px-3 py-2 font-mono text-xs text-emerald-400">
-                                <a href="${product.downloadLink}" target="_blank" class="px-3 py-2 bg-sky-600 hover:bg-sky-500 text-white rounded-xl text-xs font-bold transition whitespace-nowrap"><i class="fa-solid fa-download mr-1"></i> Buka</a>
+                        <div class="space-y-3 bg-zinc-950 p-4 rounded-2xl border border-zinc-800">
+                            <div class="flex justify-between"><span class="text-zinc-500">Pembeli:</span><span class="text-white font-bold">${guestName}</span></div>
+                            <div class="flex justify-between"><span class="text-zinc-500">WhatsApp:</span><span class="text-white font-bold">${waInput}</span></div>
+                            <div class="flex justify-between"><span class="text-zinc-500">Produk:</span><span class="text-white font-bold">${product.name}</span></div>
+                            <div class="flex justify-between"><span class="text-zinc-500">Durasi:</span><span class="text-white font-bold">${variant.duration}</span></div>
+                            <div class="flex justify-between"><span class="text-zinc-500">Total Harga:</span><span class="text-red-500 font-bold">Rp ${pricePaid.toLocaleString('id-ID')}</span></div>
+                            
+                            <div class="pt-2 border-t border-zinc-800 space-y-2">
+                                <span class="block text-zinc-400 text-xs uppercase font-semibold">KEY ANDA:</span>
+                                <div class="flex items-center gap-2">
+                                    <input type="text" readonly value="${assignedKey.keyValue}" id="key-copy-input" class="w-full bg-zinc-900 border border-zinc-700 rounded-xl px-3 py-2 font-mono text-xs text-white">
+                                    <button onclick="copyKeyText()" class="px-4 py-2 bg-red-600 hover:bg-red-700 text-white rounded-xl text-xs font-bold transition">Salin</button>
+                                </div>
                             </div>
+
+                            ${product.downloadLink ? `
+                                <div class="pt-2 border-t border-zinc-800 space-y-2">
+                                    <span class="block text-zinc-400 text-xs uppercase font-semibold">LINK DOWNLOAD / FILE:</span>
+                                    <div class="flex items-center gap-2">
+                                        <input type="text" readonly value="${product.downloadLink}" id="link-copy-input" class="w-full bg-zinc-900 border border-zinc-700 rounded-xl px-3 py-2 font-mono text-xs text-emerald-400">
+                                        <a href="${product.downloadLink}" target="_blank" class="px-3 py-2 bg-sky-600 hover:bg-sky-500 text-white rounded-xl text-xs font-bold transition whitespace-nowrap"><i class="fa-solid fa-download mr-1"></i> Buka</a>
+                                    </div>
+                                </div>
+                            ` : '<div class="text-[11px] text-zinc-500 italic pt-1">Tidak ada link download kustom untuk produk ini.</div>'}
                         </div>
-                    ` : '<div class="text-[11px] text-zinc-500 italic pt-1">Tidak ada link download kustom untuk produk ini.</div>'}
-                </div>
-            `;
-            openModal('modal-purchase');
-            openProductDetail(productId);
+                    `;
+                    openModal('modal-purchase');
+                    openProductDetail(productId);
+                    showToast('Pembayaran QRIS Berhasil!');
+                },
+                onPending: function(result){
+                    showToast('Menunggu pembayaran QRIS diselesaikan.', 'error');
+                },
+                onError: function(result){
+                    showToast('Pembayaran gagal atau dibatalkan.', 'error');
+                }
+            });
         }
 
         function copyKeyText() {
